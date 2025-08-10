@@ -1,0 +1,72 @@
+name: Go CI (Simple Bank)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: simple_bank
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U root -d simple_bank"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22.x'
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Wait for Postgres
+      run: |
+        for i in {1..30}; do
+          if pg_isready -h localhost -p 5432 -U root -d simple_bank; then
+            echo "Postgres is ready"; exit 0
+          fi
+          echo "Waiting for Postgres... ($i/30)"
+          sleep 2
+        done
+        echo "Postgres failed to start in time"; exit 1
+
+    # Nếu test của bạn cần migrate DB trước, bật 1 trong hai cách bên dưới.
+    # Cách A: chạy schema.sql (nếu bạn có sẵn)
+    # - name: Apply schema (optional)
+    #   run: psql "postgres://root:secret@localhost:5432/simple_bank?sslmode=disable" -f db/schema.sql
+
+    # Cách B: dùng Makefile migrateup (khuyên dùng nếu bạn đã có)
+    # - name: Migrate up (optional)
+    #   run: make migrateup
+    #   env:
+    #     DB_SOURCE: postgres://root:secret@localhost:5432/simple_bank?sslmode=disable
+
+    - name: Run Go tests
+      env:
+        DB_SOURCE: postgres://root:secret@localhost:5432/simple_bank?sslmode=disable
+      run: go test -v ./...
