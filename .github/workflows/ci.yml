@@ -10,6 +10,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    env:
+      DB_SOURCE: postgres://root:secret@localhost:5432/simple_bank?sslmode=disable
+
     services:
       postgres:
         image: postgres:14
@@ -55,18 +58,15 @@ jobs:
         done
         echo "Postgres failed to start in time"; exit 1
 
-    # Nếu test của bạn cần migrate DB trước, bật 1 trong hai cách bên dưới.
-    # Cách A: chạy schema.sql (nếu bạn có sẵn)
-    # - name: Apply schema (optional)
-    #   run: psql "postgres://root:secret@localhost:5432/simple_bank?sslmode=disable" -f db/schema.sql
+    - name: Install migrate CLI
+      run: |
+        curl -L -o migrate.tgz https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz
+        tar -xzf migrate.tgz
+        sudo mv migrate /usr/local/bin/migrate
+        migrate -version
 
-    # Cách B: dùng Makefile migrateup (khuyên dùng nếu bạn đã có)
-    # - name: Migrate up (optional)
-    #   run: make migrateup
-    #   env:
-    #     DB_SOURCE: postgres://root:secret@localhost:5432/simple_bank?sslmode=disable
+    - name: Run migrations (up)
+      run: migrate -path db/migration -database "$DB_SOURCE" -verbose up
 
     - name: Run Go tests
-      env:
-        DB_SOURCE: postgres://root:secret@localhost:5432/simple_bank?sslmode=disable
       run: go test -v ./...
