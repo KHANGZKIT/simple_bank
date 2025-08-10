@@ -1,0 +1,12 @@
+version: "1"
+packages:
+  - name: "db"
+    path: "./db/sqlc"          # Nơi generate code Go
+    queries: "./db/query/"     # Nơi chứa các file SQL (select, insert, update)
+    schema: "./db/migration/"  # Nơi chứa các file tạo bảng
+    engine: "postgresql"
+
+    emit_json_tags: true       # Có tag json cho struct
+    emit_prepared_queries: false
+    emit_interface: false
+    emit_exact_table_names: false
